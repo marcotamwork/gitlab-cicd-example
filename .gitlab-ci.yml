@@ -1,0 +1,60 @@
+# workflow:
+#   rules:
+#     - if: '$CI_COMMIT_TAG =~ /^uat-+[0-9]+\.[0-9]+\.[0-9]+.*$/'
+#       variables:
+#         CLUSTER: "aws-k8s-example-com-hk-uat"
+#         ENV: UAT
+stages:
+  - deploy-app
+  - deploy-monitoring
+  # - destroy
+
+variables:
+  namespace: gt-website
+  service_account: sa-gt-website-s3
+  CLUSTER: "aws-k8s-example-com-hk-uat"
+  ENV: UAT
+
+deploy:app:
+  stage: deploy-app
+  image: harbor.example.com/awscli-kubectl/awscli-kubectl:latest
+  tags:
+    - kubernetes
+  before_script:
+    - aws sts get-caller-identity
+    - aws eks update-kubeconfig --region ap-southeast-1 --name ${CLUSTER}
+  allow_failure: true
+  script:
+    - cd ${CI_PROJECT_DIR}/${ENV}
+    - kubectl apply -f ./
+    - kubectl rollout restart deployment example-uat-api -n uat
+    - kubectl rollout restart deployment example-uat-cms -n uat
+  when: manual
+
+deploy:monitoring:
+  stage: deploy-monitoring
+  image: harbor.example.com/awscli-kubectl/awscli-kubectl:latest
+  tags:
+    - kubernetes
+  before_script:
+    - aws sts get-caller-identity
+    - aws eks update-kubeconfig --region ap-southeast-1 --name ${CLUSTER}
+  allow_failure: true
+  script:
+    - cd ${CI_PROJECT_DIR}/EFK
+    - kubectl apply -f ./
+    # - kubectl apply -f nfs-pvc.yaml nfs-pv.yaml nfs-rc.yaml
+  when: manual
+# destroy:app:
+#   stage: destroy
+#   image: harbor.example.com/awscli-kubectl/awscli-kubectl:latest
+#   tags:
+#     - kubernetes
+#   before_script:
+#     - aws sts get-caller-identity
+#     - aws eks update-kubeconfig --region ap-east-1 --name ${CLUSTER}
+#   script:
+#     - cp ${CI_PROJECT_DIR}/Environments/${ENV}/deployment.yml .
+#     - kubectl delete -f deployment.yml
+#   when: manual
+
